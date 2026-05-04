@@ -8,6 +8,29 @@
 -- 3) MONTHLY_STATS.csv -> monthly_stats_stage (id, customer_id, data_usage, minute_usage, sms_usage, payment_status)
 
 -- 1) Ham monthly stats verisini uygulama tablosuna taşı
+-- Aynı customer_id için birden fazla stage kaydı varsa veri bütünlüğünü korumak için işlemi durdur.
+DECLARE
+    v_duplicate_customer_count NUMBER;
+BEGIN
+    SELECT COUNT(*)
+      INTO v_duplicate_customer_count
+      FROM (
+          SELECT s.customer_id
+            FROM monthly_stats_stage s
+           GROUP BY s.customer_id
+          HAVING COUNT(*) > 1
+      );
+
+    IF v_duplicate_customer_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20001,
+            'monthly_stats_stage tablosunda duplicate customer_id kaydi var. '
+            || 'Duzeltmeden DATA_LOAD_TRANSFORM.sql calistirilamaz.'
+        );
+    END IF;
+END;
+/
+
 MERGE INTO monthly_usage mu
 USING (
     SELECT
@@ -18,10 +41,10 @@ USING (
         s.sms_usage
     FROM monthly_stats_stage s
 ) src
-ON (mu.usage_id = src.usage_id)
+ON (mu.customer_id = src.customer_id)
 WHEN MATCHED THEN
     UPDATE SET
-        mu.customer_id   = src.customer_id,
+        mu.usage_id      = src.usage_id,
         mu.data_usage_mb = src.data_usage_mb,
         mu.minute_usage  = src.minute_usage,
         mu.sms_usage     = src.sms_usage
