@@ -89,6 +89,8 @@ CREATE TABLE monthly_stats_stage (
     minute_usage   NUMBER(10)     CONSTRAINT nn_stage_minute_usage NOT NULL,
     sms_usage      NUMBER(10)     CONSTRAINT nn_stage_sms_usage NOT NULL,
     payment_status VARCHAR2(10)   CONSTRAINT nn_stage_payment_status NOT NULL,
+    CONSTRAINT fk_stage_customer
+        FOREIGN KEY (customer_id) REFERENCES customers (customer_id),
     CONSTRAINT ck_stage_payment_status CHECK (payment_status IN ('PAID', 'LATE', 'UNPAID')),
     CONSTRAINT ck_stage_data_nonneg CHECK (data_usage >= 0),
     CONSTRAINT ck_stage_minute_nonneg CHECK (minute_usage >= 0),
