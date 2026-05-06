@@ -1,267 +1,426 @@
--- Oracle XE uyumlu çözüm sorguları
--- Her çözüm altında en az 3 cümle Türkçe açıklama ve örnek çıktı formatı vardır.
+-- ============================================================
+-- TELCO PROJECT - SOLUTIONS
+-- Developer: Zeynep Sıla Durak
+-- Date: 2026-05-06
+-- Database: Oracle XE 21c
+-- ============================================================
 
--------------------------------------------------------------------------------
--- 1.1 'Kobiye Destek' tarifesine abone müşterileri listele
--------------------------------------------------------------------------------
+-- ============================================================
+-- QUESTION 1: Tariff-Based Customer Queries
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1.1 List customers subscribed to 'Kobiye Destek' tariff
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  We join the customers table with the tariffs table using the tariff_id
+  foreign key to filter only the customers whose tariff name is 'Kobiye Destek'.
+  The city name is also fetched by joining the cities table to make the output
+  more readable and meaningful for business users.
+  The result set includes customer ID, full name, phone, email, city, and their
+  subscription (signup) date, ordered alphabetically by last name.
+*/
 SELECT
     c.customer_id,
-    c.name,
-    c.city,
+    c.first_name,
+    c.last_name,
+    c.phone_number,
+    c.email,
+    ci.city_name,
     c.signup_date,
-    t.name AS tariff_name
-FROM customers c
-JOIN tariffs t
-    ON t.tariff_id = c.tariff_id
-WHERE t.name = 'Kobiye Destek'
-ORDER BY c.signup_date DESC, c.customer_id;
+    t.tariff_name
+FROM
+    customers  c
+    JOIN tariffs ci_t ON c.tariff_id  = ci_t.tariff_id
+    JOIN cities  ci   ON c.city_id    = ci.city_id
+    JOIN tariffs t    ON c.tariff_id  = t.tariff_id
+WHERE
+    t.tariff_name = 'Kobiye Destek'
+ORDER BY
+    c.last_name, c.first_name;
 
--- Bu sorgu, müşteriler ile tarifeler tablosunu birleştirerek yalnızca istenen tarife adını filtreler.
--- Burada doğrudan tarifenin metin adı üzerinden gidildiği için, id değişse bile sorgu mantığı bozulmaz.
--- Sonuçları kayıt tarihine göre sıralayarak en güncel müşteri hareketlerini üstte görebilirsin.
--- Örnek çıktı formatı: CUSTOMER_ID | NAME | CITY | SIGNUP_DATE | TARIFF_NAME
--- Örnek sonuç satırları:
--- 8295 | ... | ... | 05/04/2026 | Kobiye Destek
--- 8164 | ... | ... | 05/04/2026 | Kobiye Destek
--- 7156 | ... | ... | 05/04/2026 | Kobiye Destek
-
--------------------------------------------------------------------------------
--- 1.2 Bu tarifenin en yeni müşterisini bul
--------------------------------------------------------------------------------
+-- Simplified version (no redundant join):
 SELECT
     c.customer_id,
-    c.name,
-    c.city,
+    c.first_name || ' ' || c.last_name AS full_name,
+    c.phone_number,
+    c.email,
+    ci.city_name,
     c.signup_date
-FROM customers c
-JOIN tariffs t
-    ON t.tariff_id = c.tariff_id
-WHERE t.name = 'Kobiye Destek'
-ORDER BY c.signup_date DESC, c.customer_id DESC
-FETCH FIRST 1 ROW ONLY;
+FROM
+    customers c
+    JOIN tariffs t ON c.tariff_id = t.tariff_id
+    JOIN cities  ci ON c.city_id  = ci.city_id
+WHERE
+    t.tariff_name = 'Kobiye Destek'
+ORDER BY
+    c.last_name, c.first_name;
 
--- Oracle'da LIMIT yerine FETCH FIRST kullanıldığı için syntax tamamen Oracle XE uyumludur.
--- Aynı tarihte birden fazla müşteri varsa deterministik sonuç için ikinci sıralama olarak customer_id DESC eklendi.
--- Böylece her çalıştırmada tek ve tutarlı bir "en yeni müşteri" kaydı elde edilir.
--- Örnek çıktı formatı: CUSTOMER_ID | NAME | CITY | SIGNUP_DATE
--- Örnek sonuç satırı:
--- 8295 | ... | ... | 05/04/2026
-
--------------------------------------------------------------------------------
--- 2.1 Tarifelerin müşteri dağılımını bul
--------------------------------------------------------------------------------
-SELECT
-    t.tariff_id,
-    t.name AS tariff_name,
-    COUNT(c.customer_id) AS customer_count
-FROM tariffs t
-LEFT JOIN customers c
-    ON c.tariff_id = t.tariff_id
-GROUP BY t.tariff_id, t.name
-ORDER BY customer_count DESC, t.tariff_id;
-
--- LEFT JOIN kullanımı, hiç müşterisi olmayan tarifelerin de raporda görünmesini sağlar.
--- Dağılım bilgisi kampanya etkisini ve tarife popülaritesini ölçmek için temel bir metriktir.
--- Çıktının büyükten küçüğe sıralanması en yoğun tarifeleri hızlıca görmeyi kolaylaştırır.
--- Örnek çıktı formatı: TARIFF_ID | TARIFF_NAME | CUSTOMER_COUNT
--- Örnek sonuç satırları:
--- 2 | Kurumsal SMS | 2577
--- 1 | Genç Dinamik | 2527
--- 4 | Kobiye Destek | 2483
--- 3 | Çalışan GB | 2413
-
--------------------------------------------------------------------------------
--- 3.1 En erken kayıt olan müşterileri bul
--------------------------------------------------------------------------------
+-- ------------------------------------------------------------
+-- 1.2 Find the NEWEST customer who subscribed to 'Kobiye Destek'
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  To identify the newest subscriber, we need the maximum signup_date among
+  all customers on the 'Kobiye Destek' tariff. We use a subquery in the WHERE
+  clause that retrieves the MAX(signup_date) for that tariff group.
+  In the rare case where two customers signed up on the exact same latest date,
+  this query will return all of them; this is intentional and correct behavior.
+  No ROWNUM or FETCH FIRST is used to avoid accidentally hiding ties.
+*/
 SELECT
     c.customer_id,
-    c.name,
-    c.city,
+    c.first_name || ' ' || c.last_name AS full_name,
+    c.phone_number,
+    c.email,
+    ci.city_name,
     c.signup_date
-FROM customers c
-WHERE c.signup_date = (
-    SELECT MIN(c2.signup_date)
-    FROM customers c2
-)
-ORDER BY c.customer_id;
+FROM
+    customers c
+    JOIN tariffs t  ON c.tariff_id = t.tariff_id
+    JOIN cities  ci ON c.city_id   = ci.city_id
+WHERE
+    t.tariff_name = 'Kobiye Destek'
+    AND c.signup_date = (
+        SELECT MAX(c2.signup_date)
+        FROM customers c2
+        JOIN tariffs t2 ON c2.tariff_id = t2.tariff_id
+        WHERE t2.tariff_name = 'Kobiye Destek'
+    );
 
--- Bu sorgu özellikle "en düşük ID en erken kayıt demek değildir" kuralına uygun olacak şekilde yazıldı.
--- Önce minimum signup_date bulunur, sonra bu tarihe sahip tüm müşteriler döndürülür.
--- Böylece tek kişiye değil, aynı gün kayıt olan tüm en erken müşterilere doğru sonuç alınır.
--- Örnek çıktı formatı: CUSTOMER_ID | NAME | CITY | SIGNUP_DATE
--- Örnek sonuç satırları:
--- 233 | ... | ... | 07/04/2025
--- 414 | ... | ... | 07/04/2025
--- 587 | ... | ... | 07/04/2025
+-- ============================================================
+-- QUESTION 2: Tariff Distribution
+-- ============================================================
 
--------------------------------------------------------------------------------
--- 3.2 Bu müşterilerin şehirlere göre dağılımını bul
--------------------------------------------------------------------------------
+-- ------------------------------------------------------------
+-- 2.1 Find the distribution of tariffs among customers
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  We group all customers by their subscribed tariff and count the number of
+  subscribers for each tariff using GROUP BY and COUNT(*). To express the
+  proportion of each tariff relative to the entire customer base, we calculate
+  a percentage using analytic SUM() OVER() which gives the grand total without
+  a separate subquery, keeping the SQL clean and efficient.
+  Results are ordered by subscriber count in descending order so the most
+  popular tariff appears at the top.
+*/
 SELECT
-    c.city,
-    COUNT(*) AS customer_count
-FROM customers c
-WHERE c.signup_date = (
-    SELECT MIN(c2.signup_date)
-    FROM customers c2
-)
-GROUP BY c.city
-ORDER BY customer_count DESC, c.city;
+    t.tariff_name,
+    COUNT(c.customer_id)                                          AS subscriber_count,
+    ROUND(
+        COUNT(c.customer_id) * 100.0
+        / SUM(COUNT(c.customer_id)) OVER (),
+        2
+    )                                                             AS percentage_pct
+FROM
+    customers c
+    JOIN tariffs t ON c.tariff_id = t.tariff_id
+GROUP BY
+    t.tariff_name
+ORDER BY
+    subscriber_count DESC;
 
--- Burada 3.1'deki en erken kayıtlı müşteri kümesi alınır ve şehir bazında gruplanır.
--- Aynı gün çok farklı şehirlerden kayıt varsa dağılım çıktısı bunu net şekilde gösterir.
--- Pazarlama veya bölgesel kampanya analizlerinde başlangıç penetrasyonunu anlamak için değerlidir.
--- Örnek çıktı formatı: CITY | CUSTOMER_COUNT
--- Örnek sonuç satırları:
--- ANTALYA   | 2
--- GAZİANTEP | 2
--- SAKARYA   | 2
+-- ============================================================
+-- QUESTION 3: Customer Signup Analysis
+-- ============================================================
 
--------------------------------------------------------------------------------
--- 4.1 Aylık kaydı eksik olan müşterilerin ID'lerini bul
--------------------------------------------------------------------------------
-SELECT
-    c.customer_id
-FROM customers c
-LEFT JOIN monthly_usage mu
-    ON mu.customer_id = c.customer_id
-WHERE mu.customer_id IS NULL
-ORDER BY c.customer_id;
-
--- LEFT JOIN + IS NULL paterni, child tabloda karşılığı olmayan parent kayıtlarını bulmanın standart yoludur.
--- Bu sorgu veri kalite kontrolü için kritik olup, eksik yüklenmiş kullanım satırlarını yakalar.
--- Özellikle ETL sonrası kontrol listesinde ilk çalıştırılacak doğrulama sorgularından biridir.
--- Örnek çıktı formatı: CUSTOMER_ID
--- Örnek sonuç satırları:
--- 6
--- 10
--- 31
--- 39
--- 45
-
--------------------------------------------------------------------------------
--- 4.2 Eksik kayıtlı müşterilerin şehirlere göre dağılımı
--------------------------------------------------------------------------------
-SELECT
-    c.city,
-    COUNT(*) AS missing_count
-FROM customers c
-LEFT JOIN monthly_usage mu
-    ON mu.customer_id = c.customer_id
-WHERE mu.customer_id IS NULL
-GROUP BY c.city
-ORDER BY missing_count DESC, c.city;
-
--- Bu rapor, eksik aylık kullanım kayıtlarının hangi şehirlerde yoğunlaştığını çıkarır.
--- Tek tek müşteri listesi yerine toplu dağılım sunarak operasyonel önceliklendirme sağlar.
--- Örneğin belirli şehirlerde sürekli eksik kayıt görünmesi, kaynak sistem ya da entegrasyon sorunu işareti olabilir.
--- Örnek çıktı formatı: CITY | MISSING_COUNT
--- Örnek sonuç satırları:
--- OSMANİYE  | 3
--- BİTLİS    | 2
--- DENİZLİ   | 2
-
--------------------------------------------------------------------------------
--- 5.1 Data limitinin %75'ini kullanan müşterileri bul
--------------------------------------------------------------------------------
+-- ------------------------------------------------------------
+-- 3.1 Identify the EARLIEST customers to sign up
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  The hint explicitly warns that the earliest customers may NOT have the lowest
+  customer_id values — this means we cannot rely on ID ordering. Instead, we
+  must rank customers by their actual signup_date column. We use DENSE_RANK()
+  OVER (ORDER BY signup_date ASC) to correctly handle ties: all customers who
+  signed up on the very first date receive rank 1 and are all included.
+  Using MIN(signup_date) in a subquery would also work, but the DENSE_RANK
+  approach is more flexible if we later want to extend to top-N earliest batches.
+*/
 SELECT
     c.customer_id,
-    c.name,
-    t.name AS tariff_name,
-    mu.data_usage_mb,
+    c.first_name || ' ' || c.last_name AS full_name,
+    c.phone_number,
+    ci.city_name,
+    t.tariff_name,
+    c.signup_date
+FROM (
+    SELECT
+        customer_id,
+        first_name,
+        last_name,
+        phone_number,
+        city_id,
+        tariff_id,
+        signup_date,
+        DENSE_RANK() OVER (ORDER BY signup_date ASC) AS signup_rank
+    FROM customers
+) c
+JOIN cities  ci ON c.city_id   = ci.city_id
+JOIN tariffs t  ON c.tariff_id = t.tariff_id
+WHERE
+    c.signup_rank = 1
+ORDER BY
+    c.signup_date;
+
+-- ------------------------------------------------------------
+-- 3.2 Distribution of earliest customers across cities
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  Building on the earliest-customer set identified in 3.1, we now aggregate
+  those customers by city to understand the geographic distribution of the
+  founding customer base. We reuse the same DENSE_RANK() logic inside a CTE
+  (Common Table Expression) for readability and to avoid repeating the subquery.
+  The total count for each city is computed with COUNT(*) inside the GROUP BY,
+  and an additional overall total row is added using ROLLUP to give a grand sum.
+*/
+WITH earliest_customers AS (
+    SELECT
+        c.customer_id,
+        c.city_id,
+        DENSE_RANK() OVER (ORDER BY c.signup_date ASC) AS signup_rank
+    FROM customers c
+)
+SELECT
+    ci.city_name,
+    COUNT(ec.customer_id) AS customer_count
+FROM
+    earliest_customers ec
+    JOIN cities ci ON ec.city_id = ci.city_id
+WHERE
+    ec.signup_rank = 1
+GROUP BY
+    ROLLUP(ci.city_name)
+ORDER BY
+    customer_count DESC NULLS LAST;
+
+-- ============================================================
+-- QUESTION 4: Missing Monthly Records
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 4.1 Identify customer IDs whose monthly record is missing
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  The monthly_usage table should contain exactly one record per customer for
+  the current billing month. To find customers whose records are absent, we
+  use a LEFT JOIN from customers to monthly_usage filtered to the current month
+  and select only the rows where the join found no match (usage_id IS NULL).
+  This is the standard "anti-join" pattern in SQL and is more efficient than
+  a NOT IN subquery, especially when the subquery might return NULLs which
+  could cause NOT IN to return no rows at all.
+  We define "this month" dynamically using TRUNC(SYSDATE, 'MM') so the query
+  remains valid across month boundaries without manual updates.
+*/
+SELECT
+    c.customer_id,
+    c.first_name || ' ' || c.last_name AS full_name,
+    c.phone_number,
+    ci.city_name,
+    t.tariff_name
+FROM
+    customers c
+    LEFT JOIN monthly_usage mu
+        ON  c.customer_id  = mu.customer_id
+        AND mu.record_month = TRUNC(SYSDATE, 'MM')
+    JOIN cities  ci ON c.city_id   = ci.city_id
+    JOIN tariffs t  ON c.tariff_id = t.tariff_id
+WHERE
+    mu.usage_id IS NULL
+ORDER BY
+    c.customer_id;
+
+-- ------------------------------------------------------------
+-- 4.2 Distribution of missing customers across cities
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  We extend the anti-join from 4.1 by grouping the results by city. This
+  reveals which geographic areas are most affected by the insertion error,
+  which is important information for diagnosing whether the issue is
+  systemic (e.g., a specific regional data pipeline failed) or random.
+  The percentage column helps quantify each city's share of the missing records
+  relative to the total number of affected customers across all cities.
+*/
+SELECT
+    ci.city_name,
+    COUNT(c.customer_id)                                          AS missing_count,
+    ROUND(
+        COUNT(c.customer_id) * 100.0
+        / SUM(COUNT(c.customer_id)) OVER (),
+        2
+    )                                                             AS percentage_pct
+FROM
+    customers c
+    LEFT JOIN monthly_usage mu
+        ON  c.customer_id  = mu.customer_id
+        AND mu.record_month = TRUNC(SYSDATE, 'MM')
+    JOIN cities ci ON c.city_id = ci.city_id
+WHERE
+    mu.usage_id IS NULL
+GROUP BY
+    ci.city_name
+ORDER BY
+    missing_count DESC;
+
+-- ============================================================
+-- QUESTION 5: Usage Analysis
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 5.1 Customers who have used at least 75% of their DATA limit
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  We calculate the data usage ratio by dividing used_data_mb by the tariff's
+  data_limit_mb for each customer's current-month usage record. The 75%
+  threshold is expressed as 0.75 to avoid integer division pitfalls in SQL.
+  A CASE WHEN guard against division by zero is included for tariffs that
+  might theoretically have a 0 MB data limit (unlimited flag edge case).
+  The result includes the actual usage and limit figures to make the output
+  immediately interpretable by business stakeholders without further lookups.
+*/
+SELECT
+    c.customer_id,
+    c.first_name || ' ' || c.last_name                             AS full_name,
+    ci.city_name,
+    t.tariff_name,
     t.data_limit_mb,
-    ROUND((mu.data_usage_mb / NULLIF(t.data_limit_mb, 0)) * 100, 2) AS data_usage_pct
-FROM customers c
-JOIN tariffs t
-    ON t.tariff_id = c.tariff_id
-JOIN monthly_usage mu
-    ON mu.customer_id = c.customer_id
-WHERE t.data_limit_mb > 0
-  AND mu.data_usage_mb >= (t.data_limit_mb * 0.75)
-ORDER BY data_usage_pct DESC, c.customer_id;
+    mu.used_data_mb,
+    ROUND(
+        CASE WHEN t.data_limit_mb = 0 THEN 0
+             ELSE mu.used_data_mb / t.data_limit_mb * 100
+        END,
+        2
+    )                                                              AS data_usage_pct
+FROM
+    customers c
+    JOIN tariffs       t  ON c.tariff_id    = t.tariff_id
+    JOIN cities        ci ON c.city_id      = ci.city_id
+    JOIN monthly_usage mu ON c.customer_id  = mu.customer_id
+                          AND mu.record_month = TRUNC(SYSDATE, 'MM')
+WHERE
+    t.data_limit_mb > 0
+    AND mu.used_data_mb / t.data_limit_mb >= 0.75
+ORDER BY
+    data_usage_pct DESC;
 
--- NULLIF ile sıfıra bölme riski ortadan kaldırılır ve sorgu güvenli hale gelir.
--- data_limit_mb = 0 olan tarifeler doğal olarak dışarıda bırakılarak yanlış pozitifler engellenir.
--- Sonuçta limitine yaklaşan müşteriler tespit edilir ve proaktif paket önerisi yapılabilir.
--- Örnek çıktı formatı: CUSTOMER_ID | NAME | TARIFF_NAME | DATA_USAGE_MB | DATA_LIMIT_MB | DATA_USAGE_PCT
--- Örnek sonuç satırları:
--- 311  | ... | Çalışan GB    | 20476.18 | 20480 | 99.98
--- 5623 | ... | Kobiye Destek | 20476.27 | 20480 | 99.98
--- 666  | ... | Genç Dinamik  | 10234.05 | 10240 | 99.94
-
--------------------------------------------------------------------------------
--- 5.2 Tüm paket limitlerini (data + dakika + SMS) tamamen tüketenler
--------------------------------------------------------------------------------
+-- ------------------------------------------------------------
+-- 5.2 Customers who exhausted ALL package limits (data + minutes + SMS)
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  A customer is considered to have "completely exhausted" their package only
+  when all three limits — data, voice minutes, and SMS — are fully consumed
+  (used value >= limit value). We apply all three conditions simultaneously
+  in the WHERE clause joined with AND, so only customers who breach every
+  single limit are returned.
+  This is a stricter superset of question 5.1 and provides a list of customers
+  who are most likely to be experiencing service interruptions or throttling,
+  making it actionable for customer support teams.
+*/
 SELECT
     c.customer_id,
-    c.name,
-    t.name AS tariff_name,
-    mu.data_usage_mb,
-    mu.minute_usage,
-    mu.sms_usage
-FROM customers c
-JOIN tariffs t
-    ON t.tariff_id = c.tariff_id
-JOIN monthly_usage mu
-    ON mu.customer_id = c.customer_id
-WHERE mu.data_usage_mb >= t.data_limit_mb
-  AND mu.minute_usage >= t.minute_limit
-  AND mu.sms_usage >= t.sms_limit
-ORDER BY c.customer_id;
+    c.first_name || ' ' || c.last_name  AS full_name,
+    c.phone_number,
+    ci.city_name,
+    t.tariff_name,
+    -- Data
+    t.data_limit_mb,
+    mu.used_data_mb,
+    -- Minutes
+    t.minutes_limit,
+    mu.used_minutes,
+    -- SMS
+    t.sms_limit,
+    mu.used_sms
+FROM
+    customers c
+    JOIN tariffs       t  ON c.tariff_id    = t.tariff_id
+    JOIN cities        ci ON c.city_id      = ci.city_id
+    JOIN monthly_usage mu ON c.customer_id  = mu.customer_id
+                          AND mu.record_month = TRUNC(SYSDATE, 'MM')
+WHERE
+    mu.used_data_mb  >= t.data_limit_mb
+    AND mu.used_minutes >= t.minutes_limit
+    AND mu.used_sms     >= t.sms_limit
+ORDER BY
+    c.customer_id;
 
--- Bu sorgu üç farklı kaynağı tek koşul kümesinde birleştirerek "tam tüketim" müşterisini yakalar.
--- Eşit veya üzerinde kullanım kabul edildiği için limit aşımı yapan müşteriler de dahil edilir.
--- Ürün ekipleri bu listeyi üst paket önerisi veya ek paket kampanyası için kullanabilir.
--- Örnek çıktı formatı: CUSTOMER_ID | NAME | TARIFF_NAME | DATA_USAGE_MB | MINUTE_USAGE | SMS_USAGE
--- Örnek sonuç:
--- Bu veri setinde tüm limitleri aynı anda tüketen müşteri bulunmamıştır (0 satır).
+-- ============================================================
+-- QUESTION 6: Payment Analysis
+-- ============================================================
 
--------------------------------------------------------------------------------
--- 6.1 Ödenmemiş ücreti olan müşterileri bul
--------------------------------------------------------------------------------
+-- ------------------------------------------------------------
+-- 6.1 Find customers who have UNPAID fees
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  We filter the payments table for records where the status column holds the
+  value 'UNPAID' or 'OVERDUE', both of which represent outstanding balances
+  that the customer has not yet settled. Joining back to customers and cities
+  enriches the result with contact details needed by the collections team.
+  The billing_month column is included so that stakeholders can see exactly
+  which period is outstanding, enabling proper aging-of-receivables analysis.
+*/
 SELECT
     c.customer_id,
-    c.name,
-    c.city,
-    p.amount_due,
-    p.payment_status
-FROM payments p
-JOIN customers c
-    ON c.customer_id = p.customer_id
-WHERE p.payment_status IN ('UNPAID', 'LATE')
-ORDER BY p.amount_due DESC, c.customer_id;
+    c.first_name || ' ' || c.last_name AS full_name,
+    c.phone_number,
+    c.email,
+    ci.city_name,
+    t.tariff_name,
+    p.billing_month,
+    p.amount,
+    p.status
+FROM
+    payments p
+    JOIN customers c ON p.customer_id = c.customer_id
+    JOIN tariffs   t ON p.tariff_id   = t.tariff_id
+    JOIN cities   ci ON c.city_id     = ci.city_id
+WHERE
+    p.status IN ('UNPAID', 'OVERDUE')
+ORDER BY
+    p.billing_month DESC, c.customer_id;
 
--- Ödeme riski açısından hem UNPAID hem LATE durumları birlikte ele alınır.
--- Tutara göre azalan sıralama, tahsilat ekibinin yüksek bakiyeli müşterileri önce görmesini sağlar.
--- Şehir bilgisini dahil etmek, bölgesel tahsilat raporlarıyla entegrasyonu kolaylaştırır.
--- Örnek çıktı formatı: CUSTOMER_ID | NAME | CITY | AMOUNT_DUE | PAYMENT_STATUS
--- Örnek sonuç satırları:
--- 19 | ... | ... | 1000 | UNPAID
--- 22 | ... | ... | 1000 | UNPAID
--- 77 | ... | ... | 1000 | LATE
-
--------------------------------------------------------------------------------
--- 6.2 Tüm tarifelerde ödeme durumlarının dağılımı
--------------------------------------------------------------------------------
+-- ------------------------------------------------------------
+-- 6.2 Distribution of payment statuses across different tariffs
+-- ------------------------------------------------------------
+/*
+  APPROACH:
+  This cross-tabulation query shows how payment statuses (PAID, UNPAID,
+  PENDING, OVERDUE) are distributed across each tariff plan. We use
+  conditional aggregation — COUNT(CASE WHEN status = 'X' THEN 1 END) —
+  to produce a pivot-style report in a single pass over the payments table,
+  which is far more efficient than multiple subqueries or UNION-based approaches.
+  The total_records column provides the row count per tariff for context, and
+  a paid_rate percentage column gives a quick quality metric showing what
+  fraction of a tariff's bills have been settled.
+*/
 SELECT
-    t.name AS tariff_name,
-    p.payment_status,
-    COUNT(*) AS customer_count
-FROM payments p
-JOIN customers c
-    ON c.customer_id = p.customer_id
-JOIN tariffs t
-    ON t.tariff_id = c.tariff_id
-GROUP BY t.name, p.payment_status
-ORDER BY t.name, p.payment_status;
+    t.tariff_name,
+    COUNT(p.payment_id)                                                   AS total_records,
+    COUNT(CASE WHEN p.status = 'PAID'    THEN 1 END)                     AS paid_count,
+    COUNT(CASE WHEN p.status = 'UNPAID'  THEN 1 END)                     AS unpaid_count,
+    COUNT(CASE WHEN p.status = 'PENDING' THEN 1 END)                     AS pending_count,
+    COUNT(CASE WHEN p.status = 'OVERDUE' THEN 1 END)                     AS overdue_count,
+    ROUND(
+        COUNT(CASE WHEN p.status = 'PAID' THEN 1 END) * 100.0
+        / NULLIF(COUNT(p.payment_id), 0),
+        2
+    )                                                                     AS paid_rate_pct
+FROM
+    payments p
+    JOIN tariffs t ON p.tariff_id = t.tariff_id
+GROUP BY
+    t.tariff_name
+ORDER BY
+    total_records DESC;
 
--- Bu sorgu, ödeme davranışını tarife kırılımında göstererek riskli ürün segmentlerini görünür yapar.
--- GROUP BY iki boyutlu kurulduğu için her tarife için PAID/LATE/UNPAID dağılımı ayrı satırlarda gelir.
--- Finans ve ürün ekipleri bu çıktıyı birlikte okuyarak fiyatlama veya hatırlatma stratejisini güncelleyebilir.
--- Örnek çıktı formatı: TARIFF_NAME | PAYMENT_STATUS | CUSTOMER_COUNT
--- Örnek sonuç satırları:
--- Genç Dinamik  | PAID   | 1792
--- Genç Dinamik  | LATE   | 372
--- Genç Dinamik  | UNPAID | 352
--- Kurumsal SMS  | PAID   | 1796
--- Kobiye Destek | UNPAID | 360
+-- ============================================================
+-- END OF SOLUTIONS
+-- ============================================================

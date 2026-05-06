@@ -1,27 +1,27 @@
-version: "3.8"
+version: '3.8'
 
 services:
   oracle-xe:
     image: gvenzl/oracle-xe:21-slim
-    container_name: telco-oracle-xe
+    container_name: telco_oracle_xe
     ports:
-      - "1521:1521"
-      - "5500:5500"
+      - "1521:1521"   # Oracle listener port
+      - "5500:5500"   # Oracle Enterprise Manager Express
     environment:
-      ORACLE_PASSWORD: oracle
-      ORACLE_DATABASE: XEPDB1
-      APP_USER: telco
-      APP_USER_PASSWORD: telco123
+      ORACLE_PASSWORD: TelcoPass123   # SYS and SYSTEM password
+      APP_USER: telco_user            # Auto-created application user
+      APP_USER_PASSWORD: TelcoUser123 # Application user password
     volumes:
-      - oracle_xe_data:/opt/oracle/oradata
-      - ./TABLE_CREATION_SCRIPTS.sql:/container-entrypoint-initdb.d/01_TABLE_CREATION_SCRIPTS.sql:ro
+      - oracle_data:/opt/oracle/oradata          # Persistent data volume
+      - ./init-scripts:/container-entrypoint-initdb.d  # Auto-run SQL scripts
     healthcheck:
-      test: ["CMD-SHELL", "echo 'SELECT 1 FROM dual;' | sqlplus -s system/oracle@localhost:1521/XEPDB1 | grep -q 1"]
+      test: ["CMD", "healthcheck.sh"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 60s
+      start_period: 120s   # Oracle XE needs time to initialise
     restart: unless-stopped
 
 volumes:
-  oracle_xe_data:
+  oracle_data:
+    driver: local

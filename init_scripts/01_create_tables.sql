@@ -1,14 +1,10 @@
 -- ============================================================
--- TELCO PROJECT - TABLE CREATION SCRIPTS
--- Developer: Zeynep Sıla Durak
--- Date: 2026-05-06
--- Database: Oracle XE 21c
+-- AUTO-SEED SCRIPT: Runs automatically when Docker container
+-- initialises for the first time.
+-- Connected as APP_USER (telco_user) by the entrypoint.
 -- ============================================================
 
--- ------------------------------------------------------------
--- 1. CITIES Table
--- Stores city information referenced by customers
--- ------------------------------------------------------------
+-- Cities
 CREATE TABLE cities (
     city_id   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     city_name VARCHAR2(100) NOT NULL,
@@ -17,14 +13,7 @@ CREATE TABLE cities (
 
 CREATE INDEX idx_cities_name ON cities(city_name);
 
--- ------------------------------------------------------------
--- 2. TARIFFS Table
--- Stores tariff/plan definitions
--- data_limit_mb  : Monthly data quota in MB
--- minutes_limit  : Monthly voice call quota in minutes
--- sms_limit      : Monthly SMS quota
--- monthly_fee    : Fixed monthly charge
--- ------------------------------------------------------------
+-- Tariffs
 CREATE TABLE tariffs (
     tariff_id      NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tariff_name    VARCHAR2(150) NOT NULL,
@@ -33,18 +22,15 @@ CREATE TABLE tariffs (
     sms_limit      NUMBER(8,2)   NOT NULL,
     monthly_fee    NUMBER(10,2)  NOT NULL,
     CONSTRAINT uq_tariff_name UNIQUE (tariff_name),
-    CONSTRAINT chk_data_limit   CHECK (data_limit_mb  >= 0),
-    CONSTRAINT chk_minutes      CHECK (minutes_limit  >= 0),
-    CONSTRAINT chk_sms          CHECK (sms_limit      >= 0),
-    CONSTRAINT chk_monthly_fee  CHECK (monthly_fee    >= 0)
+    CONSTRAINT chk_data_limit  CHECK (data_limit_mb  >= 0),
+    CONSTRAINT chk_minutes     CHECK (minutes_limit  >= 0),
+    CONSTRAINT chk_sms         CHECK (sms_limit      >= 0),
+    CONSTRAINT chk_monthly_fee CHECK (monthly_fee    >= 0)
 );
 
 CREATE INDEX idx_tariffs_name ON tariffs(tariff_name);
 
--- ------------------------------------------------------------
--- 3. CUSTOMERS Table
--- Core customer master table
--- ------------------------------------------------------------
+-- Customers
 CREATE TABLE customers (
     customer_id   NUMBER PRIMARY KEY,
     first_name    VARCHAR2(100) NOT NULL,
@@ -60,18 +46,11 @@ CREATE TABLE customers (
     CONSTRAINT uq_email       UNIQUE (email)
 );
 
-CREATE INDEX idx_cust_city      ON customers(city_id);
-CREATE INDEX idx_cust_tariff    ON customers(tariff_id);
-CREATE INDEX idx_cust_signup    ON customers(signup_date);
+CREATE INDEX idx_cust_city   ON customers(city_id);
+CREATE INDEX idx_cust_tariff ON customers(tariff_id);
+CREATE INDEX idx_cust_signup ON customers(signup_date);
 
--- ------------------------------------------------------------
--- 4. MONTHLY_USAGE Table
--- Stores each customer's usage values for the current month
--- used_data_mb   : How many MB the customer has consumed
--- used_minutes   : How many voice minutes consumed
--- used_sms       : How many SMS messages sent
--- record_month   : The billing month (first day of month)
--- ------------------------------------------------------------
+-- Monthly Usage
 CREATE TABLE monthly_usage (
     usage_id       NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     customer_id    NUMBER        NOT NULL,
@@ -89,11 +68,7 @@ CREATE TABLE monthly_usage (
 CREATE INDEX idx_usage_customer ON monthly_usage(customer_id);
 CREATE INDEX idx_usage_month    ON monthly_usage(record_month);
 
--- ------------------------------------------------------------
--- 5. PAYMENTS Table
--- Tracks monthly fee payment status per customer
--- status: 'PAID', 'UNPAID', 'PENDING', 'OVERDUE'
--- ------------------------------------------------------------
+-- Payments
 CREATE TABLE payments (
     payment_id    NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     customer_id   NUMBER        NOT NULL,
@@ -113,6 +88,4 @@ CREATE INDEX idx_pay_customer ON payments(customer_id);
 CREATE INDEX idx_pay_status   ON payments(status);
 CREATE INDEX idx_pay_tariff   ON payments(tariff_id);
 
--- ============================================================
--- END OF TABLE CREATION SCRIPTS
--- ============================================================
+COMMIT;
