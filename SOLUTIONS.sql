@@ -18,44 +18,38 @@
   foreign key to filter only the customers whose tariff name is 'Kobiye Destek'.
   The city name is also fetched by joining the cities table to make the output
   more readable and meaningful for business users.
-  The result set includes customer ID, full name, phone, email, city, and their
-  subscription (signup) date, ordered alphabetically by last name.
+  The result set includes customer ID, full name, city, and their
+  subscription (signup) date, ordered alphabetically by full name.
 */
 SELECT
     c.customer_id,
-    c.first_name,
-    c.last_name,
-    c.phone_number,
-    c.email,
+    c.full_name,
     ci.city_name,
     c.signup_date,
     t.tariff_name
 FROM
-    customers  c
-    JOIN tariffs ci_t ON c.tariff_id  = ci_t.tariff_id
-    JOIN cities  ci   ON c.city_id    = ci.city_id
-    JOIN tariffs t    ON c.tariff_id  = t.tariff_id
+    customers c
+    JOIN cities  ci ON c.city_id   = ci.city_id
+    JOIN tariffs t  ON c.tariff_id = t.tariff_id
 WHERE
     t.tariff_name = 'Kobiye Destek'
 ORDER BY
-    c.last_name, c.first_name;
+    c.full_name;
 
 -- Simplified version (no redundant join):
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name AS full_name,
-    c.phone_number,
-    c.email,
+    c.full_name,
     ci.city_name,
     c.signup_date
 FROM
     customers c
-    JOIN tariffs t ON c.tariff_id = t.tariff_id
-    JOIN cities  ci ON c.city_id  = ci.city_id
+    JOIN tariffs t  ON c.tariff_id = t.tariff_id
+    JOIN cities  ci ON c.city_id   = ci.city_id
 WHERE
     t.tariff_name = 'Kobiye Destek'
 ORDER BY
-    c.last_name, c.first_name;
+    c.full_name;
 
 -- ------------------------------------------------------------
 -- 1.2 Find the NEWEST customer who subscribed to 'Kobiye Destek'
@@ -71,9 +65,7 @@ ORDER BY
 */
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name AS full_name,
-    c.phone_number,
-    c.email,
+    c.full_name,
     ci.city_name,
     c.signup_date
 FROM
@@ -141,17 +133,14 @@ ORDER BY
 */
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name AS full_name,
-    c.phone_number,
+    c.full_name,
     ci.city_name,
     t.tariff_name,
     c.signup_date
 FROM (
     SELECT
         customer_id,
-        first_name,
-        last_name,
-        phone_number,
+        full_name,
         city_id,
         tariff_id,
         signup_date,
@@ -218,8 +207,7 @@ ORDER BY
 */
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name AS full_name,
-    c.phone_number,
+    c.full_name,
     ci.city_name,
     t.tariff_name
 FROM
@@ -286,7 +274,7 @@ ORDER BY
 */
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name                             AS full_name,
+    c.full_name,
     ci.city_name,
     t.tariff_name,
     t.data_limit_mb,
@@ -325,8 +313,7 @@ ORDER BY
 */
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name  AS full_name,
-    c.phone_number,
+    c.full_name,
     ci.city_name,
     t.tariff_name,
     -- Data
@@ -369,9 +356,7 @@ ORDER BY
 */
 SELECT
     c.customer_id,
-    c.first_name || ' ' || c.last_name AS full_name,
-    c.phone_number,
-    c.email,
+    c.full_name,
     ci.city_name,
     t.tariff_name,
     p.billing_month,
